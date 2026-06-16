@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matchday — Your Sports Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --pitch: #0d1f12;
+    --turf: #1a3a22;
+    --line: #2e5c3a;
+    --chalk: #f0f4f0;
+    --off-white: #e2e8e2;
+    --muted: #7a9480;
+    --accent: #c8f53c;
+    --accent-dim: #a8cc30;
+    --red: #e84545;
+    --amber: #f5a623;
+    --f1-red: #e10600;
+    --card-bg: #152b1c;
+    --card-border: #2a4a32;
+  }
+
+  body {
+    background: var(--pitch);
+    color: var(--chalk);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    background: var(--pitch);
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 26px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--chalk);
+  }
+  .logo span { color: var(--accent); }
+
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  .btn-manage {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.15s;
+  }
+  .btn-manage:hover { border-color: var(--accent); color: var(--accent); }
+
+  .last-updated {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── MAIN LAYOUT ── */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+  }
+
+  /* ── SETUP SCREEN ── */
+  #setup-screen {
+    max-width: 680px;
+    margin: 60px auto;
+  }
+
+  .setup-hero {
+    margin-bottom: 40px;
+  }
+  .setup-hero h1 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 52px;
+    text-transform: uppercase;
+    line-height: 1;
+    color: var(--chalk);
+  }
+  .setup-hero h1 em {
+    color: var(--accent);
+    font-style: normal;
+    display: block;
+  }
+  .setup-hero p {
+    margin-top: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  .sport-section { margin-bottom: 32px; }
+  .sport-section h2 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sport-section h2::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .team-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .team-chip {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    color: var(--off-white);
+    padding: 8px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .team-chip:hover { border-color: var(--muted); }
+  .team-chip.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--pitch);
+    font-weight: 600;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--pitch);
+    border: none;
+    padding: 14px 32px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    margin-top: 32px;
+    transition: background 0.15s;
+    width: 100%;
+  }
+  .btn-primary:hover { background: var(--accent-dim); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── DASHBOARD ── */
+  #dashboard-screen { display: none; }
+
+  .dash-intro {
+    margin-bottom: 28px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .dash-intro h2 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .dash-date { font-size: 12px; color: var(--muted); }
+
+  /* ── SPORT GROUP ── */
+  .sport-group { margin-bottom: 40px; }
+  .sport-group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .sport-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .sport-divider {
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+  .sport-icon { font-size: 16px; }
+
+  /* ── CARDS ── */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+  }
+
+  .fixture-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .fixture-card:hover { border-color: var(--line); }
+
+  .card-header {
+    padding: 12px 16px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+  }
+  .card-team-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .card-competition {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* Last result half */
+  .card-body { padding: 14px 16px; }
+
+  .result-row, .fixture-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .section-eyebrow {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .match-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .match-teams {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--chalk);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .match-score {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .match-score.win { color: var(--accent); }
+  .match-score.loss { color: var(--red); }
+  .match-score.draw { color: var(--amber); }
+
+  .match-meta {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .card-divider {
+    height: 1px;
+    background: var(--line);
+    margin: 12px 16px;
+  }
+
+  .next-fixture-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .next-fixture-teams {
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+    color: var(--chalk);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .next-fixture-date {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  /* ── F1 CARD ── */
+  .f1-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 660px;
+  }
+  .f1-card-header {
+    background: var(--f1-red);
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .f1-logo {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: 0.08em;
+    color: white;
+  }
+  .f1-season-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .f1-body { padding: 16px 18px; }
+
+  .f1-last-race { margin-bottom: 16px; }
+  .f1-podium {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .f1-pos {
+    background: var(--turf);
+    border-radius: 8px;
+    padding: 8px 12px;
+    text-align: center;
+    flex: 1;
+  }
+  .f1-pos-num {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--muted);
+  }
+  .f1-pos-num.p1 { color: #ffd700; }
+  .f1-pos-num.p2 { color: #c0c0c0; }
+  .f1-pos-num.p3 { color: #cd7f32; }
+  .f1-pos-driver {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--chalk);
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .f1-pos-team {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .f1-next-race {
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .f1-next-title {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .f1-next-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 19px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .f1-next-circuit {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .f1-next-date {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--f1-red);
+    text-align: right;
+    white-space: nowrap;
+  }
+  .f1-next-date-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  /* ── LOADING & ERROR ── */
+  .loading-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .pulse {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .error-card {
+    background: var(--card-bg);
+    border: 1px solid rgba(232,69,69,0.3);
+    border-radius: 12px;
+    padding: 18px 20px;
+    color: var(--red);
+    font-size: 13px;
+  }
+
+  /* ── MANAGE MODAL ── */
+  #modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--turf);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px;
+    max-width: 620px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .modal-header h2 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    text-transform: uppercase;
+  }
+  .btn-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 22px;
+    line-height: 1;
+    padding: 4px;
+  }
+  .btn-close:hover { color: var(--chalk); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    header { padding: 12px 16px; }
+    main { padding: 20px 14px 50px; }
+    .setup-hero h1 { font-size: 38px; }
+    .cards-grid { grid-template-columns: 1fr; }
+    .f1-podium { flex-direction: row; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Match<span>day</span></div>
+  <div class="header-actions">
+    <span class="last-updated" id="last-updated-label"></span>
+    <button class="btn-manage" id="manage-btn" style="display:none" onclick="openManage()">Edit teams</button>
+  </div>
+</header>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen">
+  <main>
+    <div class="setup-hero">
+      <h1>Your sport.<br><em>Your teams.</em></h1>
+      <p>Pick the teams and competitions you care about. Matchday will show you their latest results and upcoming fixtures every time you open it.</p>
+    </div>
+
+    <div class="sport-section">
+      <h2><span class="sport-icon">⚽</span> Football — Premier League</h2>
+      <div class="team-grid" id="prem-grid"></div>
+    </div>
+
+    <div class="sport-section">
+      <h2><span class="sport-icon">⚽</span> Football — Championship</h2>
+      <div class="team-grid" id="champ-grid"></div>
+    </div>
+
+    <div class="sport-section">
+      <h2><span class="sport-icon">🏎️</span> Formula 1</h2>
+      <div class="team-grid">
+        <div class="team-chip" data-id="f1" data-sport="f1" onclick="toggleChip(this)" id="f1-setup-chip">Follow the F1 season</div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="go-btn" onclick="saveFavourites()" disabled>Show my dashboard</button>
+  </main>
+</div>
+
+<!-- DASHBOARD SCREEN -->
+<div id="dashboard-screen">
+  <main>
+    <div class="dash-intro">
+      <h2>Your dashboard</h2>
+      <span class="dash-date" id="dash-date"></span>
+    </div>
+
+    <div id="football-section" class="sport-group" style="display:none">
+      <div class="sport-group-header">
+        <span class="sport-icon">⚽</span>
+        <span class="sport-label">Football</span>
+        <div class="sport-divider"></div>
+      </div>
+      <div class="cards-grid" id="football-cards"></div>
+    </div>
+
+    <div id="f1-section" class="sport-group" style="display:none">
+      <div class="sport-group-header">
+        <span class="sport-icon">🏎️</span>
+        <span class="sport-label">Formula 1 · 2025 Season</span>
+        <div class="sport-divider"></div>
+      </div>
+      <div id="f1-card-container"></div>
+    </div>
+  </main>
+</div>
+
+<!-- MANAGE MODAL -->
+<div id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit your teams</h2>
+      <button class="btn-close" onclick="closeManage()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+    <button class="btn-primary" onclick="saveFromModal()">Save changes</button>
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────
+//  DATA — TEAM LISTS
+// ────────────────────────────────────────────
+const PREM_TEAMS = [
+  { id: 57, name: 'Arsenal' }, { id: 58, name: 'Aston Villa' },
+  { id: 402, name: 'Bournemouth' }, { id: 1044, name: 'Brentford' },
+  { id: 397, name: 'Brighton' }, { id: 61, name: 'Chelsea' },
+  { id: 354, name: 'Crystal Palace' }, { id: 62, name: 'Everton' },
+  { id: 63, name: 'Fulham' }, { id: 563, name: 'Ipswich' },
+  { id: 64, name: 'Leicester' }, { id: 65, name: 'Liverpool' },
+  { id: 66, name: 'Man City' }, { id: 67, name: 'Man United' },
+  { id: 68, name: 'Newcastle' }, { id: 351, name: 'Nottm Forest' },
+  { id: 340, name: 'Southampton' }, { id: 73, name: 'Tottenham' },
+  { id: 563, name: 'West Ham' }, { id: 76, name: 'Wolves' }
+];
+
+const CHAMP_TEAMS = [
+  { id: 1076, name: 'Blackburn' }, { id: 387, name: 'Bristol City' },
+  { id: 75, name: 'Burnley' }, { id: 342, name: 'Cardiff' },
+  { id: 69, name: 'Coventry' }, { id: 71, name: 'Derby' },
+  { id: 72, name: 'Hull' }, { id: 384, name: 'Leeds' },
+  { id: 389, name: 'Luton' }, { id: 394, name: 'Middlesbrough' },
+  { id: 395, name: 'Millwall' }, { id: 396, name: 'Norwich' },
+  { id: 356, name: 'Oxford Utd' }, { id: 78, name: 'Plymouth' },
+  { id: 366, name: 'Portsmouth' }, { id: 399, name: 'QPR' },
+  { id: 400, name: 'Sheffield Utd' }, { id: 345, name: 'Sheffield Wed' },
+  { id: 401, name: 'Stoke' }, { id: 403, name: 'Swansea' },
+  { id: 404, name: 'Sunderland' }, { id: 74, name: 'Watford' },
+  { id: 405, name: 'West Brom' }
+];
+
+// ────────────────────────────────────────────
+//  STATE
+// ────────────────────────────────────────────
+let selected = { teams: [], f1: false };
+
+function loadPrefs() {
+  try {
+    const s = JSON.parse(localStorage.getItem('matchday_prefs') || 'null');
+    if (s) selected = s;
+  } catch(e) {}
+}
+function savePrefs() {
+  localStorage.setItem('matchday_prefs', JSON.stringify(selected));
+}
+
+// ────────────────────────────────────────────
+//  SETUP SCREEN
+// ────────────────────────────────────────────
+function buildSetupGrids() {
+  buildGrid('prem-grid', PREM_TEAMS, 'football');
+  buildGrid('champ-grid', CHAMP_TEAMS, 'football');
+}
+
+function buildGrid(containerId, teams, sport) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  teams.forEach(t => {
+    const chip = document.createElement('div');
+    chip.className = 'team-chip';
+    chip.textContent = t.name;
+    chip.dataset.id = t.id;
+    chip.dataset.name = t.name;
+    chip.dataset.sport = sport;
+    if (selected.teams.find(s => s.id == t.id)) chip.classList.add('selected');
+    chip.onclick = () => toggleChip(chip);
+    el.appendChild(chip);
+  });
+}
+
+function toggleChip(chip) {
+  const id = chip.dataset.id;
+  const sport = chip.dataset.sport;
+  if (sport === 'f1') {
+    selected.f1 = !selected.f1;
+    chip.classList.toggle('selected', selected.f1);
+  } else {
+    const idx = selected.teams.findIndex(t => t.id == id);
+    if (idx >= 0) {
+      selected.teams.splice(idx, 1);
+      chip.classList.remove('selected');
+    } else {
+      selected.teams.push({ id: parseInt(id), name: chip.dataset.name });
+      chip.classList.add('selected');
+    }
+  }
+  document.getElementById('go-btn').disabled = (selected.teams.length === 0 && !selected.f1);
+}
+
+function saveFavourites() {
+  savePrefs();
+  showDashboard();
+}
+
+// ────────────────────────────────────────────
+//  DASHBOARD
+// ────────────────────────────────────────────
+function showDashboard() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('dashboard-screen').style.display = 'block';
+  document.getElementById('manage-btn').style.display = '';
+
+  const now = new Date();
+  document.getElementById('dash-date').textContent =
+    now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  document.getElementById('last-updated-label').textContent = 'Updated ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+  if (selected.teams.length > 0) {
+    document.getElementById('football-section').style.display = '';
+    loadFootballCards();
+  }
+  if (selected.f1) {
+    document.getElementById('f1-section').style.display = '';
+    loadF1Card();
+  }
+}
+
+// ────────────────────────────────────────────
+//  FOOTBALL API
+// ────────────────────────────────────────────
+const FOOTBALL_API = 'https://api.football-data.org/v4';
+const FOOTBALL_KEY = 'e131f74c136645ee8ebbd72031b206ef';
+
+async function footballFetch(path) {
+  const res = await fetch(`${FOOTBALL_API}${path}`, {
+    headers: { 'X-Auth-Token': FOOTBALL_KEY }
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json();
+}
+
+async function loadFootballCards() {
+  const container = document.getElementById('football-cards');
+  container.innerHTML = selected.teams.map(t =>
+    `<div class="loading-card" id="fc-${t.id}"><span class="pulse"></span>Loading ${t.name}…</div>`
+  ).join('');
+  await Promise.all(selected.teams.map(t => loadTeamCard(t)));
+}
+
+async function loadTeamCard(team) {
+  const el = document.getElementById(`fc-${team.id}`);
+  try {
+    const now = new Date();
+    const fmt = d => d.toISOString().split('T')[0];
+    const dateFrom = fmt(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
+    const dateTo   = fmt(new Date(now.getFullYear(),     now.getMonth() + 5, now.getDate()));
+
+    const data = await footballFetch(`/teams/${team.id}/matches?dateFrom=${dateFrom}&dateTo=${dateTo}&limit=50`);
+    const matches = data.matches || [];
+
+    const finished = matches
+      .filter(m => m.status === 'FINISHED')
+      .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate));
+    const upcoming = matches
+      .filter(m => ['SCHEDULED', 'TIMED'].includes(m.status) && new Date(m.utcDate) >= now)
+      .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+
+    const last = finished[0];
+    const next = upcoming[0];
+    const compName = last?.competition?.name || next?.competition?.name || '';
+
+    el.className = 'fixture-card';
+    el.innerHTML = `
+      <div class="card-header">
+        <div>
+          <div class="card-team-name">${team.name}</div>
+          <div class="card-competition">${compName}</div>
+        </div>
+      </div>
+      <div class="card-body">
+        ${last ? renderLastResult(last, team.id) : '<p class="match-meta">No recent results</p>'}
+        ${last ? '<div class="card-divider"></div>' : ''}
+        ${next
+          ? renderNextFixture(next)
+          : `<div class="result-row">
+               <div class="section-eyebrow">Next fixture</div>
+               <div class="match-meta" style="margin-top:4px">
+                 ${finished.length > 0 ? '2026–27 fixtures not yet released' : 'None scheduled'}
+               </div>
+             </div>`
+        }
+      </div>
+    `;
+  } catch(e) {
+    el.className = 'error-card';
+    el.innerHTML = `⚠ Couldn't load ${team.name} — ${e.message}`;
+  }
+}
+
+function renderLastResult(match, teamId) {
+  const isHome = match.homeTeam?.id == teamId;
+  const home = match.homeTeam?.shortName || match.homeTeam?.name || '?';
+  const away = match.awayTeam?.shortName || match.awayTeam?.name || '?';
+  const hg = match.score?.fullTime?.home ?? '?';
+  const ag = match.score?.fullTime?.away ?? '?';
+
+  let resultClass = 'draw';
+  if (hg !== '?' && ag !== '?') {
+    if ((isHome && hg > ag) || (!isHome && ag > hg)) resultClass = 'win';
+    else if (hg !== ag) resultClass = 'loss';
+  }
+
+  const dateStr = new Date(match.utcDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return `
+    <div class="result-row">
+      <div class="section-eyebrow">Last result · ${dateStr}</div>
+      <div class="match-line">
+        <span class="match-teams">${home} v ${away}</span>
+        <span class="match-score ${resultClass}">${hg} – ${ag}</span>
+      </div>
+    </div>`;
+}
+
+function renderNextFixture(match) {
+  const home = match.homeTeam?.shortName || match.homeTeam?.name || '?';
+  const away = match.awayTeam?.shortName || match.awayTeam?.name || '?';
+  const d = new Date(match.utcDate);
+  const dateStr = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const timeStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return `
+    <div class="result-row">
+      <div class="section-eyebrow">Next fixture</div>
+      <div class="next-fixture-row">
+        <span class="next-fixture-teams">${home} v ${away}</span>
+        <span class="next-fixture-date">${dateStr} ${timeStr}</span>
+      </div>
+    </div>`;
+}
+
+// ────────────────────────────────────────────
+//  F1 API — Jolpica (free, no key needed)
+// ────────────────────────────────────────────
+async function loadF1Card() {
+  const container = document.getElementById('f1-card-container');
+  const season = new Date().getFullYear();
+  container.innerHTML = `<div class="loading-card"><span class="pulse"></span>Loading F1 ${season} season…</div>`;
+
+  const f1header = document.querySelector('#f1-section .sport-label');
+  if (f1header) f1header.textContent = `Formula 1 · ${season} Season`;
+
+  try {
+    const [lastData, schedData] = await Promise.all([
+      fetch(`https://api.jolpi.ca/ergast/f1/${season}/last/results/?format=json`).then(r => r.json()),
+      fetch(`https://api.jolpi.ca/ergast/f1/${season}/?format=json`).then(r => r.json()).catch(() => null)
+    ]);
+
+    const race    = lastData?.MRData?.RaceTable?.Races?.[0];
+    const podium  = (race?.Results || []).slice(0, 3);
+    const raceName = race?.raceName || '—';
+    const raceDate = race?.date
+      ? new Date(race.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+      : '';
+
+    const today    = new Date();
+    const allRaces = schedData?.MRData?.RaceTable?.Races || [];
+    const nextRace = allRaces.find(r => new Date(r.date + 'T' + (r.time || '00:00:00Z')) > today);
+
+    let nextName = '', nextCircuit = '', nextDateStr = '';
+    if (nextRace) {
+      nextName    = nextRace.raceName;
+      nextCircuit = [nextRace.Circuit?.circuitName, nextRace.Circuit?.Location?.country].filter(Boolean).join(', ');
+      nextDateStr = new Date(nextRace.date + 'T' + (nextRace.time || '12:00:00Z'))
+        .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+
+    container.innerHTML = `
+      <div class="f1-card">
+        <div class="f1-card-header">
+          <div>
+            <div class="f1-logo">FORMULA 1</div>
+            <div class="f1-season-label">${season} World Championship</div>
+          </div>
+        </div>
+        <div class="f1-body">
+          <div class="f1-last-race">
+            <div class="section-eyebrow">Last race · ${raceName}${raceDate ? ' · ' + raceDate : ''}</div>
+            <div class="f1-podium">
+              ${podium.length > 0
+                ? podium.map((r, i) => `
+                    <div class="f1-pos">
+                      <div class="f1-pos-num ${['p1','p2','p3'][i]}">${['🥇','🥈','🥉'][i]}</div>
+                      <div class="f1-pos-driver">${r.Driver?.familyName || '?'}</div>
+                      <div class="f1-pos-team">${r.Constructor?.name || ''}</div>
+                    </div>`).join('')
+                : '<p class="match-meta">No results available</p>'
+              }
+            </div>
+          </div>
+          ${nextRace
+            ? `<div class="f1-next-race">
+                 <div>
+                   <div class="f1-next-title">Next race</div>
+                   <div class="f1-next-name">${nextName}</div>
+                   <div class="f1-next-circuit">${nextCircuit}</div>
+                 </div>
+                 <div class="f1-next-date">${nextDateStr}</div>
+               </div>`
+            : '<p class="match-meta" style="margin-top:12px">No further races this season</p>'
+          }
+        </div>
+      </div>`;
+  } catch(e) {
+    container.innerHTML = `<div class="error-card">⚠ Couldn't load F1 data — ${e.message}</div>`;
+  }
+}
+
+// ────────────────────────────────────────────
+//  MANAGE MODAL
+// ────────────────────────────────────────────
+function openManage() {
+  document.getElementById('modal-body').innerHTML = `
+    <div class="sport-section">
+      <h2>⚽ Premier League</h2>
+      <div class="team-grid" id="modal-prem"></div>
+    </div>
+    <div class="sport-section">
+      <h2>⚽ Championship</h2>
+      <div class="team-grid" id="modal-champ"></div>
+    </div>
+    <div class="sport-section">
+      <h2>🏎️ Formula 1</h2>
+      <div class="team-grid" id="modal-f1"></div>
+    </div>
+  `;
+
+  buildModalGrid('modal-prem', PREM_TEAMS, 'football');
+  buildModalGrid('modal-champ', CHAMP_TEAMS, 'football');
+
+  const chip = document.createElement('div');
+  chip.className = 'team-chip' + (selected.f1 ? ' selected' : '');
+  chip.textContent = 'Follow the F1 season';
+  chip.dataset.id = 'f1';
+  chip.dataset.sport = 'f1';
+  chip.onclick = () => toggleChip(chip);
+  document.getElementById('modal-f1').appendChild(chip);
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function buildModalGrid(containerId, teams, sport) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  teams.forEach(t => {
+    const chip = document.createElement('div');
+    chip.className = 'team-chip' + (selected.teams.find(s => s.id == t.id) ? ' selected' : '');
+    chip.textContent = t.name;
+    chip.dataset.id = t.id;
+    chip.dataset.name = t.name;
+    chip.dataset.sport = sport;
+    chip.onclick = () => toggleChip(chip);
+    el.appendChild(chip);
+  });
+}
+
+function closeManage() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function saveFromModal() {
+  savePrefs();
+  closeManage();
+  document.getElementById('football-section').style.display = selected.teams.length > 0 ? '' : 'none';
+  document.getElementById('f1-section').style.display = selected.f1 ? '' : 'none';
+  if (selected.teams.length > 0) loadFootballCards();
+  if (selected.f1) loadF1Card();
+  document.getElementById('last-updated-label').textContent =
+    'Updated ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ────────────────────────────────────────────
+//  INIT
+// ────────────────────────────────────────────
+loadPrefs();
+buildSetupGrids();
+document.getElementById('go-btn').disabled = (selected.teams.length === 0 && !selected.f1);
+
+if (selected.teams.length > 0 || selected.f1) {
+  showDashboard();
+}
+</script>
+</body>
+</html>
