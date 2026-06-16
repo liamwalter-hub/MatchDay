@@ -754,15 +754,21 @@ async function footballFetch(path) {
   return res.json();
 }
 
-// Fetch last + next fixture for a specific team
-async function fetchTeamFixtures(teamId, season) {
-  const [lastRes, nextRes] = await Promise.all([
-    footballFetch(`/fixtures?team=${teamId}&season=${season}&last=1`),
-    footballFetch(`/fixtures?team=${teamId}&season=${season}&next=1`),
+async function fetchTeamFixtures(teamId) {
+  const season = currentSeason();
+  const nextSeason = season + 1;
+
+  // FT = full time (finished), NS = not started (upcoming)
+  const [lastData, nextData, nextSeasonData] = await Promise.all([
+    footballFetch(`/fixtures?team=${teamId}&season=${season}&status=FT&last=1`),
+    footballFetch(`/fixtures?team=${teamId}&season=${season}&status=NS&next=1`),
+    footballFetch(`/fixtures?team=${teamId}&season=${nextSeason}&status=NS&next=1`),
   ]);
+
   return {
-    last: lastRes.response?.[0] || null,
-    next: nextRes.response?.[0] || null,
+    last: lastData.response?.[0] || null,
+    // Use current season next fixture, or fall back to next season if off-season
+    next: nextData.response?.[0] || nextSeasonData.response?.[0] || null,
   };
 }
 
@@ -783,7 +789,7 @@ async function loadTeamCard(team) {
     const cacheKey = `${team.id}-${season}`;
 
     if (!fixtureCache[cacheKey]) {
-      fixtureCache[cacheKey] = await fetchTeamFixtures(team.id, season);
+      fixtureCache[cacheKey] = await fetchTeamFixtures(team.id);
     }
     const { last, next } = fixtureCache[cacheKey];
     const compName = last?.league?.name || next?.league?.name || '';
