@@ -726,52 +726,80 @@ function showDashboard() {
 
 // ────────────────────────────────────────────
 //  FOOTBALL — TheSportsDB (free, browser-friendly, no key needed)
-//  Free key is literally "123" in the URL — no registration required
 // ────────────────────────────────────────────
 const TSDB = 'https://www.thesportsdb.com/api/v1/json/123';
+
+// League IDs on TheSportsDB
+const FOOTBALL_LEAGUES = [
+  { id: 4328, name: 'English Premier League' },
+  { id: 4329, name: 'English Championship' },
+];
 
 async function tsdbFetch(endpoint) {
   const res = await fetch(`${TSDB}/${endpoint}`);
   if (!res.ok) throw new Error(`API ${res.status}`);
   const text = await res.text();
   if (!text || text.trim() === 'null') return {};
-  try {
-    return JSON.parse(text);
-  } catch(e) {
-    return {};
-  }
+  try { return JSON.parse(text); } catch(e) { return {}; }
 }
 
-const eventCache = {};
+// Cache per session
+const leagueEventCache = {};
+const teamEventCache   = {};
+
+// Fetch last & next events for a whole league (no home restriction on free tier)
+async function getLeagueEvents(leagueId) {
+  if (leagueEventCache[leagueId]) return leagueEventCache[leagueId];
+  const [pastData, nextData] = await Promise.all([
+    tsdbFetch(`eventspastleague.php?id=${leagueId}`),
+    tsdbFetch(`eventsnextleague.php?id=${leagueId}`),
+  ]);
+  leagueEventCache[leagueId] = {
+    past: pastData.events || [],
+    next: nextData.events || [],
+  };
+  return leagueEventCache[leagueId];
+}
 
 async function loadFootballCards() {
   const container = document.getElementById('football-cards');
-  container.innerHTML = selected.teams.map(t =>
-    `<div class="loading-card" id="fc-${t.id}"><span class="pulse"></span>Loading ${t.name}…</div>`
-  ).join('');
-  await Promise.all(selected.teams.map(t => loadTeamCard(t)));
+  container.innerHTML = `<div class="loading-card"><span class="pulse"></span>Loading fixtures…</div>`;
+  try {
+    // Fetch both leagues in parallel
+    await Promise.all(FOOTBALL_LEAGUES.map(l => getLeagueEvents(l.id)));
+    container.innerHTML = '';
+    await Promise.all(selected.teams.map(team => loadTeamCard(container, team)));
+  } catch(e) {
+    container.innerHTML = `<div class="error-card">⚠ Couldn't load football — ${e.message}</div>`;
+  }
 }
 
-async function loadTeamCard(team) {
-  const el = document.getElementById(`fc-${team.id}`);
+async function loadTeamCard(container, team) {
   try {
-    if (!eventCache[team.id]) {
-      const [lastData, nextData] = await Promise.all([
-        tsdbFetch(`eventslast.php?id=${team.id}`),
-        tsdbFetch(`eventsnext.php?id=${team.id}`),
-      ]);
-      eventCache[team.id] = {
-        // Both endpoints return an "events" array
-        last: lastData.events?.[lastData.events.length - 1] || null,
-        next: nextData.events?.[0] || null,
-      };
+    // Check all league caches for this team's events
+    let last = null, next = null;
+    for (const league of FOOTBALL_LEAGUES) {
+      const { past, next: upcoming } = leagueEventCache[league.id] || { past: [], next: [] };
+      const teamPast = past.filter(e => e.idHomeTeam == team.id || e.idAwayTeam == team.id);
+      const teamNext = upcoming.filter(e => e.idHomeTeam == team.id || e.idAwayTeam == team.id);
+      if (teamPast.length && !last) last = teamPast[teamPast.length - 1];
+      if (teamNext.length && !next) next = teamNext[0];
     }
 
-    const { last, next } = eventCache[team.id];
-    const compName = last?.strLeague || next?.strLeague || '';
+    // If nothing found in league cache, fall back to team-specific endpoint
+    if (!last && !teamEventCache[team.id]) {
+      const data = await tsdbFetch(`eventslast.php?id=${team.id}`);
+      teamEventCache[team.id] = data.events || [];
+    }
+    if (!last && teamEventCache[team.id]?.length) {
+      const events = teamEventCache[team.id];
+      last = events[events.length - 1];
+    }
 
-    el.className = 'fixture-card';
-    el.innerHTML = `
+    const compName = last?.strLeague || next?.strLeague || '';
+    const card = document.createElement('div');
+    card.className = 'fixture-card';
+    card.innerHTML = `
       <div class="card-header">
         <div>
           <div class="card-team-name">${team.name}</div>
@@ -779,7 +807,7 @@ async function loadTeamCard(team) {
         </div>
       </div>
       <div class="card-body">
-        ${last ? renderLastResult(last, team.name) : '<p class="match-meta">No recent results</p>'}
+        ${last ? renderLastResult(last, team.id) : '<p class="match-meta">No recent results</p>'}
         ${last ? '<div class="card-divider"></div>' : ''}
         ${next
           ? renderNextFixture(next)
@@ -792,29 +820,31 @@ async function loadTeamCard(team) {
         }
       </div>
     `;
+    container.appendChild(card);
   } catch(e) {
-    el.className = 'error-card';
-    el.innerHTML = `⚠ Couldn't load ${team.name} — ${e.message}`;
+    const card = document.createElement('div');
+    card.className = 'error-card';
+    card.innerHTML = `⚠ Couldn't load ${team.name} — ${e.message}`;
+    container.appendChild(card);
   }
 }
 
-function renderLastResult(event, teamName) {
+function renderLastResult(event, teamId) {
   const home   = event.strHomeTeam || '?';
   const away   = event.strAwayTeam || '?';
   const hg     = event.intHomeScore ?? '?';
   const ag     = event.intAwayScore ?? '?';
-  const isHome = home === teamName;
+  const isHome = String(event.idHomeTeam) === String(teamId);
 
   let resultClass = 'draw';
   if (hg !== '?' && ag !== '?') {
     if ((isHome && hg > ag) || (!isHome && ag > hg)) resultClass = 'win';
-    else if (hg !== ag) resultClass = 'loss';
+    else if (String(hg) !== String(ag)) resultClass = 'loss';
   }
 
   const dateStr = event.dateEvent
     ? new Date(event.dateEvent).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     : '';
-
   return `
     <div class="result-row">
       <div class="section-eyebrow">Last result · ${dateStr}</div>
@@ -831,10 +861,7 @@ function renderNextFixture(event) {
   const dateStr = event.dateEvent
     ? new Date(event.dateEvent).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
     : '';
-  const timeStr = event.strTime
-    ? event.strTime.slice(0, 5)
-    : '';
-
+  const timeStr = event.strTime ? event.strTime.slice(0, 5) : '';
   return `
     <div class="result-row">
       <div class="section-eyebrow">Next fixture</div>
@@ -977,7 +1004,8 @@ function closeManage() {
 function saveFromModal() {
   savePrefs();
   closeManage();
-  Object.keys(eventCache).forEach(k => delete eventCache[k]); // force fresh fetch
+  Object.keys(leagueEventCache).forEach(k => delete leagueEventCache[k]);
+  Object.keys(teamEventCache).forEach(k => delete teamEventCache[k]);
   document.getElementById('football-section').style.display = selected.teams.length > 0 ? '' : 'none';
   document.getElementById('f1-section').style.display = selected.f1 ? '' : 'none';
   if (selected.teams.length > 0) loadFootballCards();
