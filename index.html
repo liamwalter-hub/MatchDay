@@ -613,31 +613,31 @@
 //  DATA — TEAM LISTS
 // ────────────────────────────────────────────
 const PREM_TEAMS = [
-  { id: 57, name: 'Arsenal' }, { id: 58, name: 'Aston Villa' },
-  { id: 402, name: 'Bournemouth' }, { id: 1044, name: 'Brentford' },
-  { id: 397, name: 'Brighton' }, { id: 61, name: 'Chelsea' },
-  { id: 354, name: 'Crystal Palace' }, { id: 62, name: 'Everton' },
-  { id: 63, name: 'Fulham' }, { id: 563, name: 'Ipswich' },
-  { id: 64, name: 'Leicester' }, { id: 65, name: 'Liverpool' },
-  { id: 66, name: 'Man City' }, { id: 67, name: 'Man United' },
-  { id: 68, name: 'Newcastle' }, { id: 351, name: 'Nottm Forest' },
-  { id: 340, name: 'Southampton' }, { id: 73, name: 'Tottenham' },
-  { id: 563, name: 'West Ham' }, { id: 76, name: 'Wolves' }
+  { id: 42,  name: 'Arsenal' },       { id: 66,  name: 'Aston Villa' },
+  { id: 35,  name: 'Bournemouth' },   { id: 55,  name: 'Brentford' },
+  { id: 51,  name: 'Brighton' },      { id: 49,  name: 'Chelsea' },
+  { id: 52,  name: 'Crystal Palace' },{ id: 45,  name: 'Everton' },
+  { id: 36,  name: 'Fulham' },        { id: 57,  name: 'Ipswich' },
+  { id: 46,  name: 'Leicester' },     { id: 40,  name: 'Liverpool' },
+  { id: 50,  name: 'Man City' },      { id: 33,  name: 'Man United' },
+  { id: 34,  name: 'Newcastle' },     { id: 65,  name: 'Nottm Forest' },
+  { id: 41,  name: 'Southampton' },   { id: 47,  name: 'Tottenham' },
+  { id: 48,  name: 'West Ham' },      { id: 39,  name: 'Wolves' },
 ];
 
 const CHAMP_TEAMS = [
-  { id: 1076, name: 'Blackburn' }, { id: 387, name: 'Bristol City' },
-  { id: 75, name: 'Burnley' }, { id: 342, name: 'Cardiff' },
-  { id: 69, name: 'Coventry' }, { id: 71, name: 'Derby' },
-  { id: 72, name: 'Hull' }, { id: 384, name: 'Leeds' },
-  { id: 389, name: 'Luton' }, { id: 394, name: 'Middlesbrough' },
-  { id: 395, name: 'Millwall' }, { id: 396, name: 'Norwich' },
-  { id: 356, name: 'Oxford Utd' }, { id: 78, name: 'Plymouth' },
-  { id: 366, name: 'Portsmouth' }, { id: 399, name: 'QPR' },
-  { id: 400, name: 'Sheffield Utd' }, { id: 345, name: 'Sheffield Wed' },
-  { id: 401, name: 'Stoke' }, { id: 403, name: 'Swansea' },
-  { id: 404, name: 'Sunderland' }, { id: 74, name: 'Watford' },
-  { id: 405, name: 'West Brom' }
+  { id: 80,  name: 'Blackburn' },     { id: 71,  name: 'Bristol City' },
+  { id: 44,  name: 'Burnley' },       { id: 81,  name: 'Cardiff' },
+  { id: 98,  name: 'Coventry' },      { id: 74,  name: 'Derby' },
+  { id: 88,  name: 'Hull' },          { id: 63,  name: 'Leeds' },
+  { id: 89,  name: 'Luton' },         { id: 84,  name: 'Middlesbrough' },
+  { id: 85,  name: 'Millwall' },      { id: 71,  name: 'Norwich' },
+  { id: 91,  name: 'Oxford Utd' },    { id: 92,  name: 'Plymouth' },
+  { id: 93,  name: 'Portsmouth' },    { id: 69,  name: 'QPR' },
+  { id: 62,  name: 'Sheffield Utd' }, { id: 60,  name: 'Sheffield Wed' },
+  { id: 72,  name: 'Stoke' },         { id: 76,  name: 'Swansea' },
+  { id: 94,  name: 'Sunderland' },    { id: 79,  name: 'Watford' },
+  { id: 67,  name: 'West Brom' },
 ];
 
 // ────────────────────────────────────────────
@@ -727,119 +727,101 @@ function showDashboard() {
 }
 
 // ────────────────────────────────────────────
-//  FOOTBALL API
+//  FOOTBALL API — api-football.com (free, all endpoints)
+//  Get your free key at: dashboard.api-football.com
 // ────────────────────────────────────────────
-const FOOTBALL_API = 'https://api.football-data.org/v4';
-const FOOTBALL_KEY = 'e131f74c136645ee8ebbd72031b206ef';
+const FOOTBALL_API  = 'https://v3.football.api-sports.io';
+const FOOTBALL_KEY  = '49480bbb5426757a468e940657993133';
 
-// Competition codes on the free tier
-const COMPS = [
-  { code: 'PL',  name: 'Premier League' },
-  { code: 'ELC', name: 'Championship' },
+// League IDs on API-Football
+const LEAGUES = [
+  { id: 39,  name: 'Premier League' },
+  { id: 40,  name: 'Championship' },
 ];
+
+// Football seasons run Aug–May. "season=2025" = 2025/26.
+// In June/July we want last season's data; from Aug onwards use current year.
+function currentSeason() {
+  const now = new Date();
+  return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+}
 
 async function footballFetch(path) {
   const res = await fetch(`${FOOTBALL_API}${path}`, {
-    headers: { 'X-Auth-Token': FOOTBALL_KEY }
+    headers: { 'x-apisports-key': FOOTBALL_KEY }
   });
   if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
 }
 
-async function fetchCompMatches(code) {
-  // Football seasons run Aug–May. "season=2025" means the 2025/26 season.
-  // We're currently in June 2026 — between seasons — so fetch both
-  // the season just ended (2025) and current year in case new season started.
-  const now = new Date();
-  const thisYear = now.getFullYear();
-  const inSeason = now.getMonth() >= 7; // Aug or later = new season underway
-  const seasonA = inSeason ? thisYear : thisYear - 1; // most recent active season
-  const seasonB = seasonA - 1; // previous season as fallback
-
-  const [a, b] = await Promise.all([
-    footballFetch(`/competitions/${code}/matches?season=${seasonA}`).then(d => d.matches || []).catch(() => []),
-    footballFetch(`/competitions/${code}/matches?season=${seasonB}`).then(d => d.matches || []).catch(() => []),
+// Fetch last + next fixture for a specific team
+async function fetchTeamFixtures(teamId, season) {
+  const [lastRes, nextRes] = await Promise.all([
+    footballFetch(`/fixtures?team=${teamId}&season=${season}&last=1`),
+    footballFetch(`/fixtures?team=${teamId}&season=${season}&next=1`),
   ]);
-
-  // Merge, deduplicate by match id, return all
-  const seen = new Set();
-  return [...a, ...b].filter(m => {
-    if (seen.has(m.id)) return false;
-    seen.add(m.id);
-    return true;
-  });
+  return {
+    last: lastRes.response?.[0] || null,
+    next: nextRes.response?.[0] || null,
+  };
 }
 
-const matchCache = {};
-
-async function getAllMatches() {
-  if (matchCache.all) return matchCache.all;
-  const results = await Promise.all(COMPS.map(c => fetchCompMatches(c.code).catch(() => [])));
-  matchCache.all = results.flat();
-  return matchCache.all;
-}
+const fixtureCache = {};
 
 async function loadFootballCards() {
   const container = document.getElementById('football-cards');
-  container.innerHTML = `<div class="loading-card"><span class="pulse"></span>Loading fixtures…</div>`;
+  container.innerHTML = selected.teams.map(t =>
+    `<div class="loading-card" id="fc-${t.id}"><span class="pulse"></span>Loading ${t.name}…</div>`
+  ).join('');
+  await Promise.all(selected.teams.map(t => loadTeamCard(t)));
+}
+
+async function loadTeamCard(team) {
+  const el = document.getElementById(`fc-${team.id}`);
   try {
-    const allMatches = await getAllMatches();
-    container.innerHTML = '';
-    selected.teams.forEach(team => renderTeamCard(container, team, allMatches));
+    const season = currentSeason();
+    const cacheKey = `${team.id}-${season}`;
+
+    if (!fixtureCache[cacheKey]) {
+      fixtureCache[cacheKey] = await fetchTeamFixtures(team.id, season);
+    }
+    const { last, next } = fixtureCache[cacheKey];
+    const compName = last?.league?.name || next?.league?.name || '';
+
+    el.className = 'fixture-card';
+    el.innerHTML = `
+      <div class="card-header">
+        <div>
+          <div class="card-team-name">${team.name}</div>
+          <div class="card-competition">${compName}</div>
+        </div>
+      </div>
+      <div class="card-body">
+        ${last ? renderLastResult(last, team.id) : '<p class="match-meta">No recent results</p>'}
+        ${last ? '<div class="card-divider"></div>' : ''}
+        ${next
+          ? renderNextFixture(next)
+          : `<div class="result-row">
+               <div class="section-eyebrow">Next fixture</div>
+               <div class="match-meta" style="margin-top:4px">
+                 ${last ? '2026–27 fixtures not yet released' : 'None found'}
+               </div>
+             </div>`
+        }
+      </div>
+    `;
   } catch(e) {
-    container.innerHTML = `<div class="error-card">⚠ Couldn't load football — ${e.message}</div>`;
+    el.className = 'error-card';
+    el.innerHTML = `⚠ Couldn't load ${team.name} — ${e.message}`;
   }
 }
 
-function renderTeamCard(container, team, allMatches) {
-  const now = new Date();
-  const teamMatches = allMatches.filter(m =>
-    m.homeTeam?.id == team.id || m.awayTeam?.id == team.id
-  );
-
-  const finished = teamMatches
-    .filter(m => m.status === 'FINISHED')
-    .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate));
-  const upcoming = teamMatches
-    .filter(m => ['SCHEDULED', 'TIMED'].includes(m.status) && new Date(m.utcDate) >= now)
-    .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
-
-  const last = finished[0];
-  const next = upcoming[0];
-  const compName = last?.competition?.name || next?.competition?.name || '';
-
-  const card = document.createElement('div');
-  card.className = 'fixture-card';
-  card.innerHTML = `
-    <div class="card-header">
-      <div>
-        <div class="card-team-name">${team.name}</div>
-        <div class="card-competition">${compName}</div>
-      </div>
-    </div>
-    <div class="card-body">
-      ${last ? renderLastResult(last, team.id) : `<p class="match-meta">No results (ID:${team.id}, pool:${allMatches.length})</p>`}
-      ${last ? '<div class="card-divider"></div>' : ''}
-      ${next
-        ? renderNextFixture(next)
-        : `<div class="result-row">
-             <div class="section-eyebrow">Next fixture</div>
-             <div class="match-meta" style="margin-top:4px">
-               ${finished.length > 0 ? '2026–27 fixtures not yet released' : 'None found'}
-             </div>
-           </div>`
-      }
-    </div>
-  `;
-  container.appendChild(card);
-}
-
-function renderLastResult(match, teamId) {
-  const isHome = match.homeTeam?.id == teamId;
-  const home = match.homeTeam?.shortName || match.homeTeam?.name || '?';
-  const away = match.awayTeam?.shortName || match.awayTeam?.name || '?';
-  const hg = match.score?.fullTime?.home ?? '?';
-  const ag = match.score?.fullTime?.away ?? '?';
+function renderLastResult(fixture, teamId) {
+  const home = fixture.teams?.home?.name || '?';
+  const away = fixture.teams?.away?.name || '?';
+  const hg   = fixture.goals?.home ?? '?';
+  const ag   = fixture.goals?.away ?? '?';
+  const isHome = fixture.teams?.home?.id == teamId;
 
   let resultClass = 'draw';
   if (hg !== '?' && ag !== '?') {
@@ -847,7 +829,7 @@ function renderLastResult(match, teamId) {
     else if (hg !== ag) resultClass = 'loss';
   }
 
-  const dateStr = new Date(match.utcDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const dateStr = new Date(fixture.fixture?.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   return `
     <div class="result-row">
       <div class="section-eyebrow">Last result · ${dateStr}</div>
@@ -858,10 +840,10 @@ function renderLastResult(match, teamId) {
     </div>`;
 }
 
-function renderNextFixture(match) {
-  const home = match.homeTeam?.shortName || match.homeTeam?.name || '?';
-  const away = match.awayTeam?.shortName || match.awayTeam?.name || '?';
-  const d = new Date(match.utcDate);
+function renderNextFixture(fixture) {
+  const home = fixture.teams?.home?.name || '?';
+  const away = fixture.teams?.away?.name || '?';
+  const d    = new Date(fixture.fixture?.date);
   const dateStr = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   const timeStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   return `
@@ -1006,7 +988,7 @@ function closeManage() {
 function saveFromModal() {
   savePrefs();
   closeManage();
-  matchCache.all = null; // force fresh fetch
+  Object.keys(fixtureCache).forEach(k => delete fixtureCache[k]); // force fresh fetch
   document.getElementById('football-section').style.display = selected.teams.length > 0 ? '' : 'none';
   document.getElementById('f1-section').style.display = selected.f1 ? '' : 'none';
   if (selected.teams.length > 0) loadFootballCards();
