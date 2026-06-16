@@ -797,10 +797,19 @@ async function loadFootballCards() {
   }
 }
 
+function getScore(match) {
+  // openfootball uses two formats:
+  // 1. { "ft": [x, y] } — proper result
+  // 2. [x, y] — plain array (sometimes used, often means no score yet)
+  if (Array.isArray(match.score)) return null; // plain array = no proper result
+  if (match.score?.ft) return match.score.ft;
+  return null;
+}
+
 function teamMatches(matches, teamId) {
-  // Match by partial name — openfootball uses "Chelsea FC", "Arsenal FC" etc.
   const nameFragment = TEAM_NAME_MAP[teamId] || '';
   if (!nameFragment) return [];
+  // Use includes() so "Chelsea" matches "Chelsea FC"
   return matches.filter(m =>
     m.team1?.includes(nameFragment) || m.team2?.includes(nameFragment)
   );
@@ -811,11 +820,11 @@ function renderTeamCard(container, team, allMatches) {
   const matches = teamMatches(allMatches, team.id);
 
   const finished = matches
-    .filter(m => m.score?.ft)
+    .filter(m => getScore(m) !== null)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const upcoming = matches
-    .filter(m => !m.score?.ft && new Date(m.date) >= now)
+    .filter(m => getScore(m) === null && new Date(m.date) >= now)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const last = finished[0] || null;
@@ -850,7 +859,7 @@ function renderTeamCard(container, team, allMatches) {
 function renderLastResult(match, teamId) {
   const nameFragment = TEAM_NAME_MAP[teamId] || '';
   const isHome = match.team1?.includes(nameFragment);
-  const [hg, ag] = match.score.ft;
+  const [hg, ag] = getScore(match);
 
   let resultClass = 'draw';
   if ((isHome && hg > ag) || (!isHome && ag > hg)) resultClass = 'win';
