@@ -746,17 +746,15 @@ async function footballFetch(path) {
   return res.json();
 }
 
-// Fetch all matches for a competition across the last 14 months + next 5 months
 async function fetchCompMatches(code) {
+  // Football seasons run Aug–May. Season "2025" = 2025/26.
+  // If we're before August, the current season started last year.
   const now = new Date();
-  const fmt = d => d.toISOString().split('T')[0];
-  const dateFrom = fmt(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
-  const dateTo   = fmt(new Date(now.getFullYear(),     now.getMonth() + 5, now.getDate()));
-  const data = await footballFetch(`/competitions/${code}/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`);
+  const seasonYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  const data = await footballFetch(`/competitions/${code}/matches?season=${seasonYear}`);
   return data.matches || [];
 }
 
-// Cache so we only hit each competition endpoint once per page load
 const matchCache = {};
 
 async function getAllMatches() {
@@ -805,7 +803,7 @@ function renderTeamCard(container, team, allMatches) {
       </div>
     </div>
     <div class="card-body">
-      ${last ? renderLastResult(last, team.id) : '<p class="match-meta">No recent results</p>'}
+      ${last ? renderLastResult(last, team.id) : `<p class="match-meta">No results (ID:${team.id}, pool:${allMatches.length})</p>`}
       ${last ? '<div class="card-divider"></div>' : ''}
       ${next
         ? renderNextFixture(next)
