@@ -747,8 +747,11 @@ function currentSeason() {
 }
 
 async function footballFetch(path) {
+  // API-Football only allows x-apisports-key header — no extras.
+  // Plain object syntax avoids the Headers cloning issue in some browsers.
   const res = await fetch(`${FOOTBALL_API}${path}`, {
-    headers: { 'x-apisports-key': FOOTBALL_KEY }
+    method: 'GET',
+    headers: { 'x-apisports-key': FOOTBALL_KEY },
   });
   if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
