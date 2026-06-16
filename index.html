@@ -732,6 +732,12 @@ function showDashboard() {
 const FOOTBALL_API = 'https://api.football-data.org/v4';
 const FOOTBALL_KEY = 'e131f74c136645ee8ebbd72031b206ef';
 
+// Competition codes on the free tier
+const COMPS = [
+  { code: 'PL',  name: 'Premier League' },
+  { code: 'ELC', name: 'Championship' },
+];
+
 async function footballFetch(path) {
   const res = await fetch(`${FOOTBALL_API}${path}`, {
     headers: { 'X-Auth-Token': FOOTBALL_KEY }
@@ -740,62 +746,79 @@ async function footballFetch(path) {
   return res.json();
 }
 
-async function loadFootballCards() {
-  const container = document.getElementById('football-cards');
-  container.innerHTML = selected.teams.map(t =>
-    `<div class="loading-card" id="fc-${t.id}"><span class="pulse"></span>Loading ${t.name}…</div>`
-  ).join('');
-  await Promise.all(selected.teams.map(t => loadTeamCard(t)));
+// Fetch all matches for a competition across the last 14 months + next 5 months
+async function fetchCompMatches(code) {
+  const now = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const dateFrom = fmt(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
+  const dateTo   = fmt(new Date(now.getFullYear(),     now.getMonth() + 5, now.getDate()));
+  const data = await footballFetch(`/competitions/${code}/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`);
+  return data.matches || [];
 }
 
-async function loadTeamCard(team) {
-  const el = document.getElementById(`fc-${team.id}`);
+// Cache so we only hit each competition endpoint once per page load
+const matchCache = {};
+
+async function getAllMatches() {
+  if (matchCache.all) return matchCache.all;
+  const results = await Promise.all(COMPS.map(c => fetchCompMatches(c.code).catch(() => [])));
+  matchCache.all = results.flat();
+  return matchCache.all;
+}
+
+async function loadFootballCards() {
+  const container = document.getElementById('football-cards');
+  container.innerHTML = `<div class="loading-card"><span class="pulse"></span>Loading fixtures…</div>`;
   try {
-    const now = new Date();
-    const fmt = d => d.toISOString().split('T')[0];
-    const dateFrom = fmt(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
-    const dateTo   = fmt(new Date(now.getFullYear(),     now.getMonth() + 5, now.getDate()));
-
-    const data = await footballFetch(`/teams/${team.id}/matches?dateFrom=${dateFrom}&dateTo=${dateTo}&limit=50`);
-    const matches = data.matches || [];
-
-    const finished = matches
-      .filter(m => m.status === 'FINISHED')
-      .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate));
-    const upcoming = matches
-      .filter(m => ['SCHEDULED', 'TIMED'].includes(m.status) && new Date(m.utcDate) >= now)
-      .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
-
-    const last = finished[0];
-    const next = upcoming[0];
-    const compName = last?.competition?.name || next?.competition?.name || '';
-
-    el.className = 'fixture-card';
-    el.innerHTML = `
-      <div class="card-header">
-        <div>
-          <div class="card-team-name">${team.name}</div>
-          <div class="card-competition">${compName}</div>
-        </div>
-      </div>
-      <div class="card-body">
-        ${last ? renderLastResult(last, team.id) : '<p class="match-meta">No recent results</p>'}
-        ${last ? '<div class="card-divider"></div>' : ''}
-        ${next
-          ? renderNextFixture(next)
-          : `<div class="result-row">
-               <div class="section-eyebrow">Next fixture</div>
-               <div class="match-meta" style="margin-top:4px">
-                 ${finished.length > 0 ? '2026–27 fixtures not yet released' : 'None scheduled'}
-               </div>
-             </div>`
-        }
-      </div>
-    `;
+    const allMatches = await getAllMatches();
+    container.innerHTML = '';
+    selected.teams.forEach(team => renderTeamCard(container, team, allMatches));
   } catch(e) {
-    el.className = 'error-card';
-    el.innerHTML = `⚠ Couldn't load ${team.name} — ${e.message}`;
+    container.innerHTML = `<div class="error-card">⚠ Couldn't load football — ${e.message}</div>`;
   }
+}
+
+function renderTeamCard(container, team, allMatches) {
+  const now = new Date();
+  const teamMatches = allMatches.filter(m =>
+    m.homeTeam?.id == team.id || m.awayTeam?.id == team.id
+  );
+
+  const finished = teamMatches
+    .filter(m => m.status === 'FINISHED')
+    .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate));
+  const upcoming = teamMatches
+    .filter(m => ['SCHEDULED', 'TIMED'].includes(m.status) && new Date(m.utcDate) >= now)
+    .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+
+  const last = finished[0];
+  const next = upcoming[0];
+  const compName = last?.competition?.name || next?.competition?.name || '';
+
+  const card = document.createElement('div');
+  card.className = 'fixture-card';
+  card.innerHTML = `
+    <div class="card-header">
+      <div>
+        <div class="card-team-name">${team.name}</div>
+        <div class="card-competition">${compName}</div>
+      </div>
+    </div>
+    <div class="card-body">
+      ${last ? renderLastResult(last, team.id) : '<p class="match-meta">No recent results</p>'}
+      ${last ? '<div class="card-divider"></div>' : ''}
+      ${next
+        ? renderNextFixture(next)
+        : `<div class="result-row">
+             <div class="section-eyebrow">Next fixture</div>
+             <div class="match-meta" style="margin-top:4px">
+               ${finished.length > 0 ? '2026–27 fixtures not yet released' : 'None found'}
+             </div>
+           </div>`
+      }
+    </div>
+  `;
+  container.appendChild(card);
 }
 
 function renderLastResult(match, teamId) {
@@ -970,6 +993,7 @@ function closeManage() {
 function saveFromModal() {
   savePrefs();
   closeManage();
+  matchCache.all = null; // force fresh fetch
   document.getElementById('football-section').style.display = selected.teams.length > 0 ? '' : 'none';
   document.getElementById('f1-section').style.display = selected.f1 ? '' : 'none';
   if (selected.teams.length > 0) loadFootballCards();
