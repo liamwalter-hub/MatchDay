@@ -733,7 +733,13 @@ const TSDB = 'https://www.thesportsdb.com/api/v1/json/123';
 async function tsdbFetch(endpoint) {
   const res = await fetch(`${TSDB}/${endpoint}`);
   if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
+  const text = await res.text();
+  if (!text || text.trim() === 'null') return {};
+  try {
+    return JSON.parse(text);
+  } catch(e) {
+    return {};
+  }
 }
 
 const eventCache = {};
@@ -755,7 +761,8 @@ async function loadTeamCard(team) {
         tsdbFetch(`eventsnext.php?id=${team.id}`),
       ]);
       eventCache[team.id] = {
-        last: lastData.results?.[0] || null,
+        // Both endpoints return an "events" array
+        last: lastData.events?.[lastData.events.length - 1] || null,
         next: nextData.events?.[0] || null,
       };
     }
