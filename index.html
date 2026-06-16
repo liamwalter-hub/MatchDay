@@ -725,148 +725,156 @@ function showDashboard() {
 }
 
 // ────────────────────────────────────────────
-//  FOOTBALL — TheSportsDB (free, browser-friendly, no key needed)
+//  FOOTBALL — openfootball on GitHub Pages
+//  Public domain, no key, no CORS issues — same approach as F1
+//  Covers Premier League (en.1) and Championship (en.2)
 // ────────────────────────────────────────────
-const TSDB = 'https://www.thesportsdb.com/api/v1/json/123';
+const OPENFOOTBALL = 'https://openfootball.github.io/england';
 
-// League IDs on TheSportsDB
-const FOOTBALL_LEAGUES = [
-  { id: 4328, name: 'English Premier League' },
-  { id: 4329, name: 'English Championship' },
-];
+// Map display names to openfootball team name fragments for matching
+// openfootball uses full names like "Chelsea FC", "Arsenal FC" etc.
+const TEAM_NAME_MAP = {
+  133604: 'Arsenal',         133601: 'Aston Villa',
+  134301: 'Bournemouth',     134355: 'Brentford',
+  133619: 'Brighton',        133610: 'Chelsea',
+  133632: 'Crystal Palace',  133615: 'Everton',
+  133600: 'Fulham',          133618: 'Liverpool',
+  133613: 'Man City',        133612: 'Man United',
+  133617: 'Newcastle',       133599: 'Nottm Forest',
+  133602: 'Tottenham',       133636: 'West Ham',
+  133609: 'Wolves',
+  // Championship
+  133590: 'Blackburn',       133585: 'Bristol City',
+  133623: 'Burnley',         133588: 'Cardiff',
+  133648: 'Coventry',        133591: 'Derby',
+  133649: 'Hull',            133601: 'Leeds',
+  133650: 'Middlesbrough',   133651: 'Millwall',
+  133587: 'Norwich',         133652: 'Oxford',
+  133654: 'Portsmouth',      133655: 'QPR',
+  133626: 'Sheffield Utd',   133656: 'Sheffield Wed',
+  133657: 'Stoke',           133631: 'Sunderland',
+  133658: 'Swansea',         133659: 'Watford',
+  133660: 'West Brom',
+};
 
-async function tsdbFetch(endpoint) {
-  const res = await fetch(`${TSDB}/${endpoint}`);
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  const text = await res.text();
-  if (!text || text.trim() === 'null') return {};
-  try { return JSON.parse(text); } catch(e) { return {}; }
+// Season folder: football seasons run Aug-May
+// Between seasons (Jun-Jul) show the season just finished
+function footballSeason() {
+  const now = new Date();
+  const y = now.getFullYear();
+  return now.getMonth() >= 7
+    ? `${y}-${String(y + 1).slice(2)}`      // e.g. "2026-27"
+    : `${y - 1}-${String(y).slice(2)}`;     // e.g. "2025-26"
 }
 
-// Cache per session
-const leagueEventCache = {};
-const teamEventCache   = {};
+const leagueCache = {};
 
-// Fetch last & next events for a whole league (no home restriction on free tier)
-async function getLeagueEvents(leagueId) {
-  if (leagueEventCache[leagueId]) return leagueEventCache[leagueId];
-  const [pastData, nextData] = await Promise.all([
-    tsdbFetch(`eventspastleague.php?id=${leagueId}`),
-    tsdbFetch(`eventsnextleague.php?id=${leagueId}`),
-  ]);
-  leagueEventCache[leagueId] = {
-    past: pastData.events || [],
-    next: nextData.events || [],
-  };
-  return leagueEventCache[leagueId];
+async function fetchLeagueData(file) {
+  if (leagueCache[file]) return leagueCache[file];
+  const season = footballSeason();
+  const url = `${OPENFOOTBALL}/${season}/${file}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status} fetching ${url}`);
+  const data = await res.json();
+  leagueCache[file] = data.matches || [];
+  return leagueCache[file];
 }
 
 async function loadFootballCards() {
   const container = document.getElementById('football-cards');
   container.innerHTML = `<div class="loading-card"><span class="pulse"></span>Loading fixtures…</div>`;
   try {
-    // Fetch both leagues in parallel
-    await Promise.all(FOOTBALL_LEAGUES.map(l => getLeagueEvents(l.id)));
+    // Fetch PL and Championship in parallel; if one fails, use empty array
+    const [plMatches, champMatches] = await Promise.all([
+      fetchLeagueData('1-premierleague.json').catch(() => []),
+      fetchLeagueData('2-championship.json').catch(() => []),
+    ]);
+    const allMatches = [...plMatches, ...champMatches];
     container.innerHTML = '';
-    await Promise.all(selected.teams.map(team => loadTeamCard(container, team)));
+    selected.teams.forEach(team => renderTeamCard(container, team, allMatches));
   } catch(e) {
     container.innerHTML = `<div class="error-card">⚠ Couldn't load football — ${e.message}</div>`;
   }
 }
 
-async function loadTeamCard(container, team) {
-  try {
-    // Check all league caches for this team's events
-    let last = null, next = null;
-    for (const league of FOOTBALL_LEAGUES) {
-      const { past, next: upcoming } = leagueEventCache[league.id] || { past: [], next: [] };
-      const teamPast = past.filter(e => e.idHomeTeam == team.id || e.idAwayTeam == team.id);
-      const teamNext = upcoming.filter(e => e.idHomeTeam == team.id || e.idAwayTeam == team.id);
-      if (teamPast.length && !last) last = teamPast[teamPast.length - 1];
-      if (teamNext.length && !next) next = teamNext[0];
-    }
-
-    // If nothing found in league cache, fall back to team-specific endpoint
-    if (!last && !teamEventCache[team.id]) {
-      const data = await tsdbFetch(`eventslast.php?id=${team.id}`);
-      teamEventCache[team.id] = data.events || [];
-    }
-    if (!last && teamEventCache[team.id]?.length) {
-      const events = teamEventCache[team.id];
-      last = events[events.length - 1];
-    }
-
-    const compName = last?.strLeague || next?.strLeague || '';
-    const card = document.createElement('div');
-    card.className = 'fixture-card';
-    card.innerHTML = `
-      <div class="card-header">
-        <div>
-          <div class="card-team-name">${team.name}</div>
-          <div class="card-competition">${compName}</div>
-        </div>
-      </div>
-      <div class="card-body">
-        ${last ? renderLastResult(last, team.id) : '<p class="match-meta">No recent results</p>'}
-        ${last ? '<div class="card-divider"></div>' : ''}
-        ${next
-          ? renderNextFixture(next)
-          : `<div class="result-row">
-               <div class="section-eyebrow">Next fixture</div>
-               <div class="match-meta" style="margin-top:4px">
-                 ${last ? '2026–27 fixtures not yet released' : 'None found'}
-               </div>
-             </div>`
-        }
-      </div>
-    `;
-    container.appendChild(card);
-  } catch(e) {
-    const card = document.createElement('div');
-    card.className = 'error-card';
-    card.innerHTML = `⚠ Couldn't load ${team.name} — ${e.message}`;
-    container.appendChild(card);
-  }
+function teamMatches(matches, teamId) {
+  // Match by partial name — openfootball uses "Chelsea FC", "Arsenal FC" etc.
+  const nameFragment = TEAM_NAME_MAP[teamId] || '';
+  if (!nameFragment) return [];
+  return matches.filter(m =>
+    m.team1?.includes(nameFragment) || m.team2?.includes(nameFragment)
+  );
 }
 
-function renderLastResult(event, teamId) {
-  const home   = event.strHomeTeam || '?';
-  const away   = event.strAwayTeam || '?';
-  const hg     = event.intHomeScore ?? '?';
-  const ag     = event.intAwayScore ?? '?';
-  const isHome = String(event.idHomeTeam) === String(teamId);
+function renderTeamCard(container, team, allMatches) {
+  const now = new Date();
+  const matches = teamMatches(allMatches, team.id);
+
+  const finished = matches
+    .filter(m => m.score?.ft)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const upcoming = matches
+    .filter(m => !m.score?.ft && new Date(m.date) >= now)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const last = finished[0] || null;
+  const next = upcoming[0] || null;
+
+  const card = document.createElement('div');
+  card.className = 'fixture-card';
+  card.innerHTML = `
+    <div class="card-header">
+      <div>
+        <div class="card-team-name">${team.name}</div>
+        <div class="card-competition">${footballSeason().replace('-', '/20')} Season</div>
+      </div>
+    </div>
+    <div class="card-body">
+      ${last ? renderLastResult(last, team.id) : '<p class="match-meta">No recent results</p>'}
+      ${last ? '<div class="card-divider"></div>' : ''}
+      ${next
+        ? renderNextFixture(next)
+        : `<div class="result-row">
+             <div class="section-eyebrow">Next fixture</div>
+             <div class="match-meta" style="margin-top:4px">
+               ${finished.length > 0 ? '2026–27 fixtures not yet released' : 'None found'}
+             </div>
+           </div>`
+      }
+    </div>
+  `;
+  container.appendChild(card);
+}
+
+function renderLastResult(match, teamId) {
+  const nameFragment = TEAM_NAME_MAP[teamId] || '';
+  const isHome = match.team1?.includes(nameFragment);
+  const [hg, ag] = match.score.ft;
 
   let resultClass = 'draw';
-  if (hg !== '?' && ag !== '?') {
-    if ((isHome && hg > ag) || (!isHome && ag > hg)) resultClass = 'win';
-    else if (String(hg) !== String(ag)) resultClass = 'loss';
-  }
+  if ((isHome && hg > ag) || (!isHome && ag > hg)) resultClass = 'win';
+  else if (hg !== ag) resultClass = 'loss';
 
-  const dateStr = event.dateEvent
-    ? new Date(event.dateEvent).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-    : '';
+  const dateStr = new Date(match.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   return `
     <div class="result-row">
       <div class="section-eyebrow">Last result · ${dateStr}</div>
       <div class="match-line">
-        <span class="match-teams">${home} v ${away}</span>
+        <span class="match-teams">${match.team1} v ${match.team2}</span>
         <span class="match-score ${resultClass}">${hg} – ${ag}</span>
       </div>
     </div>`;
 }
 
-function renderNextFixture(event) {
-  const home    = event.strHomeTeam || '?';
-  const away    = event.strAwayTeam || '?';
-  const dateStr = event.dateEvent
-    ? new Date(event.dateEvent).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-    : '';
-  const timeStr = event.strTime ? event.strTime.slice(0, 5) : '';
+function renderNextFixture(match) {
+  const dateStr = new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const timeStr = match.time ? match.time.slice(0, 5) : '';
   return `
     <div class="result-row">
       <div class="section-eyebrow">Next fixture</div>
       <div class="next-fixture-row">
-        <span class="next-fixture-teams">${home} v ${away}</span>
+        <span class="next-fixture-teams">${match.team1} v ${match.team2}</span>
         <span class="next-fixture-date">${dateStr}${timeStr ? ' ' + timeStr : ''}</span>
       </div>
     </div>`;
@@ -1004,8 +1012,7 @@ function closeManage() {
 function saveFromModal() {
   savePrefs();
   closeManage();
-  Object.keys(leagueEventCache).forEach(k => delete leagueEventCache[k]);
-  Object.keys(teamEventCache).forEach(k => delete teamEventCache[k]);
+  Object.keys(leagueCache).forEach(k => delete leagueCache[k]);
   document.getElementById('football-section').style.display = selected.teams.length > 0 ? '' : 'none';
   document.getElementById('f1-section').style.display = selected.f1 ? '' : 'none';
   if (selected.teams.length > 0) loadFootballCards();
