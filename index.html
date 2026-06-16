@@ -747,12 +747,27 @@ async function footballFetch(path) {
 }
 
 async function fetchCompMatches(code) {
-  // Football seasons run Aug–May. Season "2025" = 2025/26.
-  // If we're before August, the current season started last year.
+  // Football seasons run Aug–May. "season=2025" means the 2025/26 season.
+  // We're currently in June 2026 — between seasons — so fetch both
+  // the season just ended (2025) and current year in case new season started.
   const now = new Date();
-  const seasonYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
-  const data = await footballFetch(`/competitions/${code}/matches?season=${seasonYear}`);
-  return data.matches || [];
+  const thisYear = now.getFullYear();
+  const inSeason = now.getMonth() >= 7; // Aug or later = new season underway
+  const seasonA = inSeason ? thisYear : thisYear - 1; // most recent active season
+  const seasonB = seasonA - 1; // previous season as fallback
+
+  const [a, b] = await Promise.all([
+    footballFetch(`/competitions/${code}/matches?season=${seasonA}`).then(d => d.matches || []).catch(() => []),
+    footballFetch(`/competitions/${code}/matches?season=${seasonB}`).then(d => d.matches || []).catch(() => []),
+  ]);
+
+  // Merge, deduplicate by match id, return all
+  const seen = new Set();
+  return [...a, ...b].filter(m => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
 }
 
 const matchCache = {};
