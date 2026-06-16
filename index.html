@@ -646,7 +646,14 @@ let selected = { teams: [], f1: false };
 function loadPrefs() {
   try {
     const s = JSON.parse(localStorage.getItem('matchday_prefs') || 'null');
-    if (s) selected = s;
+    if (s) {
+      // Validate saved team IDs against current lists — clear if stale
+      const validIds = new Set([...PREM_TEAMS, ...CHAMP_TEAMS].map(t => t.id));
+      const validTeams = (s.teams || []).filter(t => validIds.has(t.id));
+      selected = { teams: validTeams, f1: s.f1 || false };
+      // If we removed teams, resave
+      if (validTeams.length !== (s.teams || []).length) savePrefs();
+    }
   } catch(e) {}
 }
 function savePrefs() {
@@ -734,26 +741,26 @@ const OPENFOOTBALL = 'https://openfootball.github.io/england';
 // Map display names to openfootball team name fragments for matching
 // openfootball uses full names like "Chelsea FC", "Arsenal FC" etc.
 const TEAM_NAME_MAP = {
-  133604: 'Arsenal',         133601: 'Aston Villa',
-  134301: 'Bournemouth',     134355: 'Brentford',
-  133619: 'Brighton',        133610: 'Chelsea',
-  133632: 'Crystal Palace',  133615: 'Everton',
-  133600: 'Fulham',          133618: 'Liverpool',
-  133613: 'Man City',        133612: 'Man United',
-  133617: 'Newcastle',       133599: 'Nottm Forest',
-  133602: 'Tottenham',       133636: 'West Ham',
-  133609: 'Wolves',
+  133604: 'Arsenal',          133601: 'Aston Villa',
+  134301: 'Bournemouth',      134355: 'Brentford',
+  133619: 'Brighton',         133610: 'Chelsea',
+  133632: 'Crystal Palace',   133615: 'Everton',
+  133600: 'Fulham',           133618: 'Liverpool',
+  133613: 'Manchester City',  133612: 'Manchester United',
+  133617: 'Newcastle',        133599: 'Nottingham Forest',
+  133602: 'Tottenham',        133636: 'West Ham',
+  133609: 'Wolverhampton',
   // Championship
-  133590: 'Blackburn',       133585: 'Bristol City',
-  133623: 'Burnley',         133588: 'Cardiff',
-  133648: 'Coventry',        133591: 'Derby',
-  133649: 'Hull',            133601: 'Leeds',
-  133650: 'Middlesbrough',   133651: 'Millwall',
-  133587: 'Norwich',         133652: 'Oxford',
-  133654: 'Portsmouth',      133655: 'QPR',
-  133626: 'Sheffield Utd',   133656: 'Sheffield Wed',
-  133657: 'Stoke',           133631: 'Sunderland',
-  133658: 'Swansea',         133659: 'Watford',
+  133590: 'Blackburn',        133585: 'Bristol City',
+  133623: 'Burnley',          133588: 'Cardiff',
+  133648: 'Coventry',         133591: 'Derby',
+  133649: 'Hull',             133635: 'Leeds',
+  133650: 'Middlesbrough',    133651: 'Millwall',
+  133587: 'Norwich',          133652: 'Oxford',
+  133654: 'Portsmouth',       133655: 'QPR',
+  133626: 'Sheffield Utd',    133656: 'Sheffield Wed',
+  133657: 'Stoke',            133631: 'Sunderland',
+  133658: 'Swansea',          133659: 'Watford',
   133660: 'West Brom',
 };
 
